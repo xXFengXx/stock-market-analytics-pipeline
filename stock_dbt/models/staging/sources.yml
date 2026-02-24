@@ -1,0 +1,36 @@
+version: 2
+
+sources:
+  - name: raw
+    description: "Raw stock price data loaded by load_to_postgres.py"
+    schema: raw
+    tables:
+      - name: stock_prices
+        description: "Daily OHLCV data for all tracked tickers ingested from Yahoo Finance."
+        columns:
+          - name: date
+            description: "Trading date (YYYY-MM-DD)."
+            tests:
+              - not_null
+          - name: ticker
+            description: "Stock ticker symbol."
+            tests:
+              - not_null
+              - accepted_values:
+                  values: ['AAPL', 'MSFT', 'AMZN', 'GOOGL', 'META', 'NVDA', 'TSLA', 'BRK-B', 'JPM', 'JNJ']
+          - name: open
+            description: "Opening price of the day."
+          - name: high
+            description: "Intraday high price."
+          - name: low
+            description: "Intraday low price."
+          - name: close
+            description: "Closing price of the day."
+            tests:
+              - not_null
+          - name: adjusted_close
+            description: "Dividend/split-adjusted closing price."
+          - name: volume
+            description: "Total shares traded."
+            tests:
+              - not_null

@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stock Market Analytics Dashboard</title>
+  <meta name="description" content="Interactive dashboard comparing closing prices, trading volume, and moving averages for the top 10 stocks." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+
+  <style>
+    /* ── Reset & Variables ────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-base:      #0a0d14;
+      --bg-card:      #111622;
+      --bg-card-2:    #161d2e;
+      --border:       rgba(255,255,255,0.07);
+      --accent:       #4f8ef7;
+      --accent-glow:  rgba(79,142,247,0.25);
+      --text-primary: #e8edf5;
+      --text-muted:   #7a8499;
+      --success:      #34d399;
+      --warning:      #fbbf24;
+      --danger:       #f87171;
+
+      --ticker-colors: #4f8ef7, #34d399, #fbbf24, #f87171, #a78bfa, 
+                       #fb923c, #38bdf8, #f472b6, #4ade80, #e2e8f0;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg-base);
+      color: var(--text-primary);
+      min-height: 100vh;
+    }
+
+    /* ── Header ─────────────────────────────────────────────────────────── */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(10,13,20,0.85);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+    }
+
+    .header-inner {
+      max-width: 1400px;
+      margin: 0 auto;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      text-decoration: none;
+    }
+
+    .logo-icon {
+      width: 34px;
+      height: 34px;
+      background: linear-gradient(135deg, #4f8ef7, #a78bfa);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+    }
+
+    .header-meta {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .data-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: rgba(79,142,247,0.12);
+      border: 1px solid rgba(79,142,247,0.3);
+      color: var(--accent);
+      font-size: 0.75rem;
+      font-weight: 500;
+      padding: 0.3rem 0.75rem;
+      border-radius: 999px;
+    }
+
+    .dot-live {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 6px var(--success);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.6; transform: scale(0.85); }
+    }
+
+    /* ── Layout ─────────────────────────────────────────────────────────── */
+    main {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 2rem 2rem 4rem;
+    }
+
+    /* ── KPI Row ─────────────────────────────────────────────────────────── */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(185px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .kpi-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.25rem 1.5rem;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+
+    .kpi-card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(255,255,255,0.14);
+    }
+
+    .kpi-label {
+      font-size: 0.73rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    .kpi-value {
+      font-size: 1.55rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      line-height: 1;
+    }
+
+    .kpi-sub {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 0.35rem;
+    }
+
+    .kpi-pill {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 0.18rem 0.5rem;
+      border-radius: 999px;
+      margin-top: 0.4rem;
+    }
+
+    .kpi-pill.up   { background: rgba(52,211,153,0.15); color: var(--success); }
+    .kpi-pill.down { background: rgba(248,113,113,0.15); color: var(--danger); }
+
+    /* ── Tabs ────────────────────────────────────────────────────────────── */
+    .tab-bar {
+      display: flex;
+      gap: 0.4rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.35rem;
+      margin-bottom: 1.5rem;
+      width: fit-content;
+    }
+
+    .tab-btn {
+      padding: 0.55rem 1.4rem;
+      border-radius: 8px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      font-family: inherit;
+      font-size: 0.88rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .tab-btn:hover { color: var(--text-primary); background: rgba(255,255,255,0.05); }
+
+    .tab-btn.active {
+      background: linear-gradient(135deg, rgba(79,142,247,0.2), rgba(167,139,250,0.2));
+      color: var(--text-primary);
+      box-shadow: 0 0 0 1px rgba(79,142,247,0.4);
+    }
+
+    /* ── Tab Panels ──────────────────────────────────────────────────────── */
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Chart Card ──────────────────────────────────────────────────────── */
+    .chart-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.75rem 2rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .chart-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 1.5rem;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .chart-title {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .chart-subtitle {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+    }
+
+    .chart-controls {
+      display: flex;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+    }
+
+    .ctrl-btn {
+      padding: 0.3rem 0.75rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg-card-2);
+      color: var(--text-muted);
+      font-family: inherit;
+      font-size: 0.78rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.18s;
+    }
+
+    .ctrl-btn:hover, .ctrl-btn.active {
+      background: rgba(79,142,247,0.15);
+      border-color: rgba(79,142,247,0.4);
+      color: var(--accent);
+    }
+
+    .chart-wrap { position: relative; height: 360px; }
+    .chart-wrap.tall { height: 420px; }
+
+    /* ── Legend Grid ─────────────────────────────────────────────────────── */
+    .legend-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+      gap: 0.5rem;
+      margin-top: 1.25rem;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 0.4rem 0.6rem;
+      border-radius: 6px;
+      transition: background 0.15s;
+    }
+
+    .legend-item:hover { background: rgba(255,255,255,0.05); }
+
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* ── Loading ─────────────────────────────────────────────────────────── */
+    #loading-overlay {
+      position: fixed;
+      inset: 0;
+      background: var(--bg-base);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+      gap: 1rem;
+      transition: opacity 0.4s;
+    }
+
+    #loading-overlay.hidden { opacity: 0; pointer-events: none; }
+
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 3px solid rgba(79,142,247,0.2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-text {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    /* ── Scrollbar ───────────────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
+
+    /* ── Responsive ──────────────────────────────────────────────────────── */
+    @media (max-width: 640px) {
+      header { padding: 0 1rem; }
+      main   { padding: 1.25rem 1rem 3rem; }
+      .chart-card { padding: 1.25rem 1rem; }
+      .chart-wrap { height: 260px; }
+      .chart-wrap.tall { height: 300px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Loading overlay -->
+<div id="loading-overlay">
+  <div class="spinner"></div>
+  <p class="loading-text">Loading market data…</p>
+</div>
+
+<!-- Header -->
+<header>
+  <div class="header-inner">
+    <a class="logo" href="#">
+      <div class="logo-icon">📈</div>
+      Stock Analytics
+    </a>
+    <div class="header-meta" id="date-range-label">—</div>
+    <div class="data-badge">
+      <span class="dot-live"></span>
+      Yahoo Finance · yfinance
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- KPI Cards -->
+  <div class="kpi-grid" id="kpi-grid"></div>
+
+  <!-- Tab Navigation -->
+  <div class="tab-bar" role="tablist">
+    <button class="tab-btn active" role="tab" data-tab="prices"    id="tab-prices">Closing Prices</button>
+    <button class="tab-btn"        role="tab" data-tab="volume"    id="tab-volume">Trading Volume</button>
+    <button class="tab-btn"        role="tab" data-tab="sma"       id="tab-sma">Moving Averages</button>
+    <button class="tab-btn"        role="tab" data-tab="perf"      id="tab-perf">Performance</button>
+  </div>
+
+  <!-- TAB 1: Closing Prices -->
+  <div class="tab-panel active" id="panel-prices">
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Closing Price Over Time</div>
+          <div class="chart-subtitle">Adjusted closing prices for all 10 tickers (USD)</div>
+        </div>
+        <div class="chart-controls">
+          <button class="ctrl-btn" data-range="1M">1M</button>
+          <button class="ctrl-btn" data-range="3M">3M</button>
+          <button class="ctrl-btn" data-range="6M">6M</button>
+          <button class="ctrl-btn" data-range="1Y">1Y</button>
+          <button class="ctrl-btn active" data-range="ALL">ALL</button>
+        </div>
+      </div>
+      <div class="chart-wrap tall"><canvas id="chartPrices"></canvas></div>
+      <div class="legend-grid" id="legend-prices"></div>
+    </div>
+  </div>
+
+  <!-- TAB 2: Volume -->
+  <div class="tab-panel" id="panel-volume">
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Daily Trading Volume</div>
+          <div class="chart-subtitle">Shares traded per day — select a ticker below</div>
+        </div>
+        <div class="chart-controls" id="volume-ticker-btns"></div>
+      </div>
+      <div class="chart-wrap"><canvas id="chartVolume"></canvas></div>
+    </div>
+  </div>
+
+  <!-- TAB 3: Moving Averages -->
+  <div class="tab-panel" id="panel-sma">
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">30-Day Moving Average</div>
+          <div class="chart-subtitle">Smoothed closing price trend — select tickers to compare</div>
+        </div>
+        <div class="chart-controls" id="sma-ticker-btns"></div>
+      </div>
+      <div class="chart-wrap tall"><canvas id="chartSMA"></canvas></div>
+      <div class="legend-grid" id="legend-sma"></div>
+    </div>
+  </div>
+
+  <!-- TAB 4: Normalised Performance -->
+  <div class="tab-panel" id="panel-perf">
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Normalised Performance (Base = 100)</div>
+          <div class="chart-subtitle">Equal starting point — shows who grew the most</div>
+        </div>
+        <div class="chart-controls">
+          <button class="ctrl-btn" data-range-perf="1Y">1Y</button>
+          <button class="ctrl-btn" data-range-perf="2Y">2Y</button>
+          <button class="ctrl-btn active" data-range-perf="ALL">ALL</button>
+        </div>
+      </div>
+      <div class="chart-wrap tall"><canvas id="chartPerf"></canvas></div>
+      <div class="legend-grid" id="legend-perf"></div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+"use strict";
+// ── Palette ──────────────────────────────────────────────────────────────────
+const PALETTE = [
+  '#4f8ef7','#34d399','#fbbf24','#f87171','#a78bfa',
+  '#fb923c','#38bdf8','#f472b6','#4ade80','#e2e8f0'
+];
+
+// ── Chart.js global defaults ─────────────────────────────────────────────────
+Chart.defaults.color = '#7a8499';
+Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
+Chart.defaults.font.size = 12;
+
+const GRID_COLOR   = 'rgba(255,255,255,0.06)';
+const TOOLTIP_BG   = '#1a2235';
+const TOOLTIP_BORDER = 'rgba(255,255,255,0.1)';
+
+// ── Shared chart options builder ─────────────────────────────────────────────
+function timeScaleOpts(unit = 'month') {
+  return {
+    type: 'time',
+    time: { unit },
+    grid: { color: GRID_COLOR, drawBorder: false },
+    ticks: { maxRotation: 0, maxTicksLimit: 12 }
+  };
+}
+
+function yAxisOpts(prefix = '$', suffix = '') {
+  return {
+    grid: { color: GRID_COLOR, drawBorder: false },
+    ticks: {
+      callback: v => prefix + v.toLocaleString('en-US', {maximumFractionDigits: 0}) + suffix
+    }
+  };
+}
+
+function tooltipPlugin(prefix = '$') {
+  return {
+    plugins: {
+      tooltip: {
+        mode: 'index',
+        intersect: false,
+        backgroundColor: TOOLTIP_BG,
+        borderColor: TOOLTIP_BORDER,
+        borderWidth: 1,
+        padding: 12,
+        cornerRadius: 10,
+        titleFont: { size: 12, weight: '500' },
+        bodyFont: { size: 11 },
+        callbacks: {
+          label: ctx => {
+            const val = ctx.parsed.y;
+            if (val == null) return null;
+            return ` ${ctx.dataset.label}: ${prefix}${val.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+          }
+        }
+      },
+      legend: { display: false }
+    }
+  };
+}
+
+// ── Utility ──────────────────────────────────────────────────────────────────
+function sma(data, window) {
+  return data.map((_, i) => {
+    if (i < window - 1) return null;
+    const slice = data.slice(i - window + 1, i + 1);
+    const valid = slice.filter(v => v != null);
+    return valid.length === window ? valid.reduce((a, b) => a + b, 0) / window : null;
+  });
+}
+
+function cutoffDate(range) {
+  const now = new Date();
+  const map = { '1M': 31, '3M': 92, '6M': 183, '1Y': 365, '2Y': 730 };
+  if (!map[range]) return null;
+  const d = new Date(now);
+  d.setDate(d.getDate() - map[range]);
+  return d.toISOString().slice(0, 10);
+}
+
+function filterByDate(dates, values, minDate) {
+  if (!minDate) return { dates, values };
+  const fd = [], fv = [];
+  for (let i = 0; i < dates.length; i++) {
+    if (dates[i] >= minDate) { fd.push(dates[i]); fv.push(values[i]); }
+  }
+  return { dates: fd, values: fv };
+}
+
+// ── Normalise to base 100 ────────────────────────────────────────────────────
+function normalise(values) {
+  const base = values.find(v => v != null);
+  if (!base) return values;
+  return values.map(v => v == null ? null : +((v / base) * 100).toFixed(4));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MAIN
+// ─────────────────────────────────────────────────────────────────────────────
+let ALL_DATA = {};   // { TICKER: { dates:[], close:[], volume:[] } }
+let charts = {};     // chart id → Chart instance
+let currentPriceRange = 'ALL';
+let currentPerfRange  = 'ALL';
+let activeVolumeTicker = null;
+let activeSMATickers   = new Set();
+
+async function loadData() {
+  // Try the relative path for when the page is opened from the project root
+  // Falls back to embedded demo data if not found
+  try {
+    const resp = await fetch('../data/processed/all_tickers.json');
+    if (!resp.ok) throw new Error('not found');
+    ALL_DATA = await resp.json();
+  } catch {
+    try {
+      const resp2 = await fetch('data/processed/all_tickers.json');
+      if (!resp2.ok) throw new Error('not found');
+      ALL_DATA = await resp2.json();
+    } catch {
+      // Use embedded demo data so the dashboard works with no server
+      ALL_DATA = buildDemoData();
+    }
+  }
+}
+
+// ── Demo data generator (used when JSON file is absent) ──────────────────────
+function buildDemoData() {
+  const tickers = ['AAPL','MSFT','AMZN','GOOGL','META','NVDA','TSLA','BRK-B','JPM','JNJ'];
+  const startPrices = { AAPL:150, MSFT:260, AMZN:110, GOOGL:95, META:120, NVDA:200, TSLA:220, 'BRK-B':280, JPM:135, JNJ:155 };
+  const data = {};
+  const start = new Date('2020-01-02');
+
+  for (const t of tickers) {
+    const dates = [], close = [], volume = [];
+    let price = startPrices[t] || 100;
+    const d = new Date(start);
+    while (d <= new Date()) {
+      const day = d.getDay();
+      if (day !== 0 && day !== 6) {
+        dates.push(d.toISOString().slice(0, 10));
+        price = Math.max(10, price * (1 + (Math.random() - 0.48) * 0.025));
+        close.push(+price.toFixed(4));
+        volume.push(Math.floor(5e6 + Math.random() * 45e6));
+      }
+      d.setDate(d.getDate() + 1);
+    }
+    data[t] = { dates, close, volume };
+  }
+  return data;
+}
+
+// ── KPI Cards ────────────────────────────────────────────────────────────────
+function buildKPIs() {
+  const tickers = Object.keys(ALL_DATA);
+  const container = document.getElementById('kpi-grid');
+
+  // Date range label
+  let globalMin = '9999', globalMax = '0000';
+  for (const t of tickers) {
+    const d = ALL_DATA[t].dates;
+    if (d[0] < globalMin) globalMin = d[0];
+    if (d[d.length-1] > globalMax) globalMax = d[d.length-1];
+  }
+  document.getElementById('date-range-label').textContent =
+    `${globalMin} → ${globalMax}`;
+
+  const cards = tickers.map((t, i) => {
+    const { close } = ALL_DATA[t];
+    const latest = close[close.length - 1];
+    const prev   = close[close.length - 2] ?? latest;
+    const chgPct = ((latest - prev) / prev) * 100;
+    const isUp   = chgPct >= 0;
+    return `
+      <div class="kpi-card">
+        <div class="kpi-label" style="color:${PALETTE[i % PALETTE.length]}">${t}</div>
+        <div class="kpi-value">$${latest.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
+        <div class="kpi-pill ${isUp ? 'up' : 'down'}">${isUp ? '▲' : '▼'} ${Math.abs(chgPct).toFixed(2)}%</div>
+      </div>`;
+  });
+  container.innerHTML = cards.join('');
+}
+
+// ── CHART 1  Closing Prices ──────────────────────────────────────────────────
+function buildPriceChart(range = 'ALL') {
+  const tickers = Object.keys(ALL_DATA);
+  const minDate = cutoffDate(range);
+
+  const datasets = tickers.map((t, i) => {
+    const { dates, close } = ALL_DATA[t];
+    const f = filterByDate(dates, close, minDate);
+    return {
+      label: t,
+      data: f.dates.map((d, j) => ({ x: d, y: f.values[j] })),
+      borderColor: PALETTE[i % PALETTE.length],
+      backgroundColor: PALETTE[i % PALETTE.length] + '18',
+      borderWidth: 1.8,
+      pointRadius: 0,
+      tension: 0.3,
+      fill: false,
+    };
+  });
+
+  if (charts.prices) charts.prices.destroy();
+
+  const ctx = document.getElementById('chartPrices').getContext('2d');
+  charts.prices = new Chart(ctx, {
+    type: 'line',
+    data: { datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      scales: { x: timeScaleOpts(), y: yAxisOpts() },
+      ...tooltipPlugin('$'),
+      animation: { duration: 400 }
+    }
+  });
+
+  // Custom legend
+  const lg = document.getElementById('legend-prices');
+  lg.innerHTML = tickers.map((t, i) => `
+    <div class="legend-item" data-ticker="${t}" onclick="togglePriceLine('${t}')">
+      <span class="legend-dot" style="background:${PALETTE[i%PALETTE.length]}"></span>
+      ${t}
+    </div>`).join('');
+}
+
+window.togglePriceLine = function(ticker) {
+  const ds = charts.prices.data.datasets;
+  const idx = ds.findIndex(d => d.label === ticker);
+  if (idx === -1) return;
+  const meta = charts.prices.getDatasetMeta(idx);
+  meta.hidden = !meta.hidden;
+  charts.prices.update();
+};
+
+// ── CHART 2  Volume ──────────────────────────────────────────────────────────
+function buildVolumeChart(ticker) {
+  const { dates, volume } = ALL_DATA[ticker];
+  if (charts.volume) charts.volume.destroy();
+  const ctx = document.getElementById('chartVolume').getContext('2d');
+  const color = PALETTE[Object.keys(ALL_DATA).indexOf(ticker) % PALETTE.length];
+
+  charts.volume = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      datasets: [{
+        label: ticker + ' Volume',
+        data: dates.map((d, i) => ({ x: d, y: volume[i] })),
+        backgroundColor: color + '88',
+        borderColor: color,
+        borderWidth: 0.5,
+        borderRadius: 2,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: timeScaleOpts('month'),
+        y: {
+          grid: { color: GRID_COLOR, drawBorder: false },
+          ticks: { callback: v => (v / 1e6).toFixed(0) + 'M' }
+        }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: TOOLTIP_BG,
+          borderColor: TOOLTIP_BORDER,
+          borderWidth: 1,
+          padding: 10,
+          cornerRadius: 8,
+          callbacks: {
+            label: ctx => ` Volume: ${(ctx.parsed.y / 1e6).toFixed(2)}M shares`
+          }
+        }
+      },
+      animation: { duration: 300 }
+    }
+  });
+}
+
+// ── CHART 3  SMA ─────────────────────────────────────────────────────────────
+function buildSMAChart() {
+  const tickers = [...activeSMATickers];
+  if (tickers.length === 0) {
+    if (charts.sma) { charts.sma.destroy(); charts.sma = null; }
+    return;
+  }
+
+  const datasets = tickers.map(t => {
+    const { dates, close } = ALL_DATA[t];
+    const smoothed = sma(close, 30);
+    const i = Object.keys(ALL_DATA).indexOf(t);
+    return [
+      {
+        label: t + ' (close)',
+        data: dates.map((d, j) => ({ x: d, y: close[j] })),
+        borderColor: PALETTE[i % PALETTE.length] + '44',
+        borderWidth: 1,
+        pointRadius: 0,
+        tension: 0.1,
+        fill: false,
+      },
+      {
+        label: t + ' (30d SMA)',
+        data: dates.map((d, j) => ({ x: d, y: smoothed[j] })),
+        borderColor: PALETTE[i % PALETTE.length],
+        borderWidth: 2.2,
+        pointRadius: 0,
+        tension: 0.4,
+        fill: false,
+      }
+    ];
+  }).flat();
+
+  if (charts.sma) charts.sma.destroy();
+  const ctx = document.getElementById('chartSMA').getContext('2d');
+  charts.sma = new Chart(ctx, {
+    type: 'line',
+    data: { datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      scales: { x: timeScaleOpts(), y: yAxisOpts() },
+      ...tooltipPlugin('$'),
+      animation: { duration: 300 }
+    }
+  });
+
+  const lg = document.getElementById('legend-sma');
+  lg.innerHTML = tickers.map(t => {
+    const i = Object.keys(ALL_DATA).indexOf(t);
+    return `<div class="legend-item">
+      <span class="legend-dot" style="background:${PALETTE[i%PALETTE.length]}"></span>${t} 30d SMA
+    </div>`;
+  }).join('');
+}
+
+// ── CHART 4  Normalised Performance ─────────────────────────────────────────
+function buildPerfChart(range = 'ALL') {
+  const tickers = Object.keys(ALL_DATA);
+  const minDate = cutoffDate(range);
+
+  const datasets = tickers.map((t, i) => {
+    const { dates, close } = ALL_DATA[t];
+    const f = filterByDate(dates, close, minDate);
+    const normed = normalise(f.values);
+    return {
+      label: t,
+      data: f.dates.map((d, j) => ({ x: d, y: normed[j] })),
+      borderColor: PALETTE[i % PALETTE.length],
+      borderWidth: 2,
+      pointRadius: 0,
+      tension: 0.3,
+      fill: false,
+    };
+  });
+
+  if (charts.perf) charts.perf.destroy();
+  const ctx = document.getElementById('chartPerf').getContext('2d');
+  charts.perf = new Chart(ctx, {
+    type: 'line',
+    data: { datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: timeScaleOpts(),
+        y: {
+          grid: { color: GRID_COLOR, drawBorder: false },
+          ticks: { callback: v => v.toFixed(0) }
+        }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          mode: 'index', intersect: false,
+          backgroundColor: TOOLTIP_BG, borderColor: TOOLTIP_BORDER, borderWidth: 1,
+          padding: 12, cornerRadius: 10,
+          callbacks: {
+            label: ctx => {
+              const val = ctx.parsed.y;
+              if (val == null) return null;
+              const ret = (val - 100).toFixed(2);
+              const sign = ret >= 0 ? '+' : '';
+              return ` ${ctx.dataset.label}: ${val.toFixed(1)}  (${sign}${ret}%)`;
+            }
+          }
+        }
+      },
+      animation: { duration: 400 }
+    }
+  });
+
+  const lg = document.getElementById('legend-perf');
+  lg.innerHTML = tickers.map((t, i) => `
+    <div class="legend-item">
+      <span class="legend-dot" style="background:${PALETTE[i%PALETTE.length]}"></span>${t}
+    </div>`).join('');
+}
+
+// ── Ticker button builders ────────────────────────────────────────────────────
+function buildVolumeBtns() {
+  const tickers = Object.keys(ALL_DATA);
+  activeVolumeTicker = tickers[0];
+  const container = document.getElementById('volume-ticker-btns');
+  container.innerHTML = tickers.map((t, i) => `
+    <button class="ctrl-btn ${i === 0 ? 'active' : ''}" id="vol-btn-${t}"
+            onclick="selectVolumeTicker('${t}')">${t}</button>`).join('');
+  buildVolumeChart(tickers[0]);
+}
+
+window.selectVolumeTicker = function(ticker) {
+  document.querySelectorAll('#volume-ticker-btns .ctrl-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('vol-btn-' + ticker)?.classList.add('active');
+  activeVolumeTicker = ticker;
+  buildVolumeChart(ticker);
+};
+
+function buildSMABtns() {
+  const tickers = Object.keys(ALL_DATA);
+  // Default: first 3 active
+  activeSMATickers = new Set(tickers.slice(0, 3));
+  const container = document.getElementById('sma-ticker-btns');
+  container.innerHTML = tickers.map((t, i) => `
+    <button class="ctrl-btn ${i < 3 ? 'active' : ''}" id="sma-btn-${t}"
+            onclick="toggleSMATicker('${t}')">${t}</button>`).join('');
+  buildSMAChart();
+}
+
+window.toggleSMATicker = function(ticker) {
+  if (activeSMATickers.has(ticker)) {
+    if (activeSMATickers.size === 1) return; // keep at least one
+    activeSMATickers.delete(ticker);
+    document.getElementById('sma-btn-' + ticker)?.classList.remove('active');
+  } else {
+    activeSMATickers.add(ticker);
+    document.getElementById('sma-btn-' + ticker)?.classList.add('active');
+  }
+  buildSMAChart();
+};
+
+// ── Tab switching ────────────────────────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-' + btn.dataset.tab)?.classList.add('active');
+
+    // Resize charts that might have been hidden
+    setTimeout(() => {
+      Object.values(charts).forEach(c => c?.resize());
+    }, 50);
+  });
+});
+
+// ── Price range buttons ───────────────────────────────────────────────────────
+document.querySelectorAll('[data-range]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-range]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentPriceRange = btn.dataset.range;
+    buildPriceChart(currentPriceRange);
+  });
+});
+
+document.querySelectorAll('[data-range-perf]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-range-perf]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentPerfRange = btn.dataset.rangePerf;
+    buildPerfChart(currentPerfRange);
+  });
+});
+
+// ── Bootstrap ────────────────────────────────────────────────────────────────
+async function init() {
+  await loadData();
+
+  buildKPIs();
+  buildPriceChart('ALL');
+  buildVolumeBtns();
+  buildSMABtns();
+  buildPerfChart('ALL');
+
+  // Hide loading
+  const overlay = document.getElementById('loading-overlay');
+  overlay.classList.add('hidden');
+  setTimeout(() => overlay.remove(), 500);
+}
+
+init();
+</script>
+</body>
+</html>

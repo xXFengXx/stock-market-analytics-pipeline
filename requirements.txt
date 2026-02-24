@@ -1,0 +1,18 @@
+# Core data stack
+yfinance==0.2.54
+pandas==2.2.3
+numpy==2.2.3
+psycopg2-binary==2.9.10
+python-dotenv==1.0.1
+sqlalchemy==2.0.38
+
+# DBT
+dbt-postgres==1.9.3
+dbt-core==1.9.3
+
+# Airflow  (install separately via pip install apache-airflow==2.9.3)
+# Kept separate to avoid heavy dependency conflicts in dev environments
+# See README for Airflow installation instructions.
+
+# Dashboard data export
+requests==2.32.3
