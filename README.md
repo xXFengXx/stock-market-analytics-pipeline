@@ -31,7 +31,7 @@ DBT (stock_dbt/)
    └── marts.mart_performance_comparison (table)
         │
         ▼
-Airflow DAG: stock_market_pipeline
+Airflow DAG (WSL2): stock_market_pipeline
    ingest → load → dbt run → dbt test  (@daily, Mon–Fri 02:00 UTC)
 ```
 
@@ -41,8 +41,10 @@ Airflow DAG: stock_market_pipeline
 
 ```
 Stock Market Analytics Pipeline/
-├── .env.example                        ← copy to .env and fill in
+├── .env                                ← database credentials (not tracked in Git)
 ├── requirements.txt
+├── open_airflow.bat                    ← double-click to start Airflow on Windows
+├── start_airflow.sh                    ← internal WSL2 script to start Airflow
 ├── scripts/
 │   ├── ingest_stock_data.py            ← yfinance download + CSV export
 │   └── load_to_postgres.py             ← upsert CSVs into PostgreSQL
@@ -91,17 +93,18 @@ Stock Market Analytics Pipeline/
 pip install -r requirements.txt
 ```
 
-> **Airflow on Windows**: Airflow is Linux-native. Use WSL2 or Docker.
-> ```bash
-> pip install apache-airflow==2.9.3 \
->   --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.9.3/constraints-3.11.txt"
-> ```
+> **Airflow on Windows**: Airflow is Linux-native. We use WSL2 (Ubuntu) to run it, connecting back to PostgreSQL on the Windows host.
 
 ### 3. Configure environment
 
+Make sure a `.env` file exists in the root directory with your PostgreSQL credentials:
+
 ```bash
-cp .env.example .env
-# Edit .env with your PostgreSQL credentials
+POSTGRES_HOST=127.0.0.1
+POSTGRES_PORT=5432
+POSTGRES_DB=stock_analytics
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=your_password
 ```
 
 ### 4. Create the database
@@ -178,26 +181,38 @@ All tests run automatically with `dbt test`:
 
 ---
 
-## Airflow Orchestration
+## Airflow Orchestration (WSL2)
 
-```bash
-export AIRFLOW_HOME=$(pwd)/airflow_home
-airflow db init
-airflow users create --username admin --password admin \
-  --firstname Admin --lastname User --role Admin --email admin@example.com
+Because Apache Airflow requires a Unix-like environment, it runs inside **WSL2 (Ubuntu)** while connecting to the PostgreSQL database running on the Windows host. 
 
-# Copy DAG
-cp dags/stock_pipeline_dag.py $AIRFLOW_HOME/dags/
+To start the Airflow scheduler and webserver:
 
-# Start scheduler + webserver
-airflow scheduler &
-airflow webserver --port 8080
+1. Double-click `open_airflow.bat` on Windows.
+2. It will automatically start WSL2, run `start_airflow.sh`, and open `http://localhost:8080` in your browser.
+
+**Login details:**
+- **Username:** `admin`
+- **Password:** `admin123`
+
+Visit [http://localhost:8080](http://localhost:8080) and enable the `stock_market_pipeline` switch.
+The DAG runs automatically every weekday at 02:00 UTC (after US market close).
+
+*Note: If you update `stock_pipeline_dag_wsl2.py`, you must sync it to the internal WSL2 Airflow folder:*
+```powershell
+wsl -e bash -c "cp '/mnt/d/Work/Data/Stock Market Analytics Pipeline/dags/stock_pipeline_dag_wsl2.py' /opt/airflow/dags/stock_pipeline_dag.py"
 ```
 
-Visit [http://localhost:8080](http://localhost:8080) → enable `stock_market_pipeline`.
+---
 
-Schedule: `0 2 * * 1-5` (Mon–Fri, 02:00 UTC — after US market close)
+## Pushing Updates to GitHub
 
+This repository is tracked via Git. To save your changes and upload them to GitHub, open a PowerShell terminal in the project folder and run:
+
+```powershell
+git add .
+git commit -m "Describe your updates here"
+git push
+```
 ---
 
 ## Dashboard Features
